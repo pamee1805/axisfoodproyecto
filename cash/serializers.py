@@ -6,6 +6,11 @@ from .services import calcular_resumen_caja, validar_caja_abierta_para_movimient
 
 
 class CajaSessionSerializer(serializers.ModelSerializer):
+    ERROR_SUCURSAL_USUARIO = (
+        'Tu usuario no tiene una sucursal asignada. Pedile a un administrador '
+        'que configure tu sucursal.'
+    )
+
     sucursal_nombre = serializers.CharField(source='sucursal.nombre', read_only=True)
     usuario_username = serializers.CharField(source='usuario.username', read_only=True)
     resumen_conciliacion = serializers.SerializerMethodField()
@@ -35,18 +40,32 @@ class CajaSessionSerializer(serializers.ModelSerializer):
             'fecha_apertura',
             'resumen_conciliacion',
         )
+        extra_kwargs = {
+            'sucursal': {'required': False},
+        }
 
     def validate(self, attrs):
         request = self.context.get('request')
-        tenant = getattr(getattr(request, 'user', None), 'tenant', None)
+        user = getattr(request, 'user', None)
+        tenant = getattr(user, 'tenant', None)
         if tenant is None:
             raise serializers.ValidationError(
                 'El usuario autenticado debe tener una empresa asociada.'
             )
 
         sucursal = attrs.get('sucursal', getattr(self.instance, 'sucursal', None))
+        if sucursal is None and self.instance is None:
+            sucursal = getattr(user, 'sucursal_principal', None)
+            if sucursal is not None:
+                attrs['sucursal'] = sucursal
+
         estado = attrs.get('estado', getattr(self.instance, 'estado', CajaSession.Estado.ABIERTA))
         saldo_final = attrs.get('saldo_final', getattr(self.instance, 'saldo_final', None))
+
+        if sucursal is None:
+            raise serializers.ValidationError(
+                {'sucursal': self.ERROR_SUCURSAL_USUARIO}
+            )
 
         if sucursal and sucursal.tenant_id != tenant.id:
             raise serializers.ValidationError(

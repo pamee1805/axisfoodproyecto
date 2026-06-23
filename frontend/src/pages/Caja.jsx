@@ -30,6 +30,7 @@ import {
   getMovimientosCaja,
 } from '../services/cajaService'
 import ContextHelp from '../components/common/ContextHelp'
+import { useAuth } from '../auth/useAuth'
 import { cashHelp } from '../utils/helpText'
 import { formatCurrency as formatMoney, formatTime } from '../utils/formatters'
 
@@ -45,13 +46,20 @@ function normalizeList(data) {
   return []
 }
 
+const ERROR_SUCURSAL_USUARIO =
+  'Tu usuario no tiene una sucursal asignada. Pedile a un administrador que configure tu sucursal.'
+
+function getSucursalesFromUser(user) {
+  const sucursal = user?.sucursal_principal
+  return sucursal?.id
+    ? [{ id: sucursal.id, nombre: sucursal.nombre || 'Sucursal principal' }]
+    : []
+}
+
 function getStoredSucursales() {
   try {
     const user = JSON.parse(localStorage.getItem('axisfood_user')) || null
-    const sucursal = user?.sucursal_principal
-    return sucursal?.id
-      ? [{ id: sucursal.id, nombre: sucursal.nombre || 'Sucursal principal' }]
-      : []
+    return getSucursalesFromUser(user)
   } catch {
     return []
   }
@@ -75,9 +83,16 @@ function getErrorMessage(error) {
     return data
   }
 
-  if (data.detail) {
-    return data.detail
-  }
+    if (data.detail) {
+      return data.detail
+    }
+
+    if (data.sucursal) {
+      const message = Array.isArray(data.sucursal) ? data.sucursal.join(' ') : String(data.sucursal)
+      if (message.includes('Tu usuario no tiene una sucursal asignada')) {
+        return message
+      }
+    }
 
   return Object.entries(data)
     .map(([field, messages]) => {
@@ -92,18 +107,6 @@ function getErrorMessage(error) {
       return `${labels[field] || 'Dato'}: ${text}`
     })
     .join(' ')
-}
-
-function isToday(value) {
-  const date = new Date(value)
-  const today = new Date()
-
-  return (
-    !Number.isNaN(date.getTime()) &&
-    date.getFullYear() === today.getFullYear() &&
-    date.getMonth() === today.getMonth() &&
-    date.getDate() === today.getDate()
-  )
 }
 
 function getMovimientoLabel(tipo) {
@@ -135,19 +138,17 @@ function getSaldoActual(caja, movimientos) {
 }
 
 function buildChartData(movimientos) {
-  const buckets = movimientos
-    .filter((movimiento) => isToday(movimiento.fecha))
-    .reduce((acc, movimiento) => {
-      const label = formatTime(movimiento.fecha)
-      const current = acc.get(label) || { label, ingresos: 0, egresos: 0 }
-      if (movimiento.tipo === 'egreso') {
-        current.egresos += Number(movimiento.monto || 0)
-      } else if (movimiento.tipo === 'ingreso') {
-        current.ingresos += Number(movimiento.monto || 0)
-      }
-      acc.set(label, current)
-      return acc
-    }, new Map())
+  const buckets = movimientos.reduce((acc, movimiento) => {
+    const label = formatTime(movimiento.fecha)
+    const current = acc.get(label) || { label, ingresos: 0, egresos: 0 }
+    if (movimiento.tipo === 'egreso') {
+      current.egresos += Number(movimiento.monto || 0)
+    } else if (movimiento.tipo === 'ingreso') {
+      current.ingresos += Number(movimiento.monto || 0)
+    }
+    acc.set(label, current)
+    return acc
+  }, new Map())
 
   return Array.from(buckets.values()).slice(-8)
 }
@@ -208,7 +209,9 @@ function AbrirCajaForm({ isSubmitting, onCancel, onSubmit, sucursales }) {
     const nextErrors = {}
     const saldo = Number(values.saldo_inicial)
 
-    if (!values.sucursal) {
+    if (!values.sucursal && !sucursales.length) {
+      nextErrors.sucursal = ERROR_SUCURSAL_USUARIO
+    } else if (!values.sucursal) {
       nextErrors.sucursal = 'Elegí una sucursal para abrir caja.'
     }
     if (values.saldo_inicial === '' || Number.isNaN(saldo) || saldo < 0) {
@@ -220,10 +223,14 @@ function AbrirCajaForm({ isSubmitting, onCancel, onSubmit, sucursales }) {
       return
     }
 
-    onSubmit({
-      sucursal: Number(values.sucursal),
+    const payload = {
       saldo_inicial: values.saldo_inicial,
-    })
+    }
+    if (values.sucursal) {
+      payload.sucursal = Number(values.sucursal)
+    }
+
+    onSubmit(payload)
   }
 
   return (
@@ -452,6 +459,7 @@ function CerrarCajaForm({ caja, esperado, isSubmitting, onCancel, onSubmit }) {
 }
 
 function Caja() {
+  const { user } = useAuth()
   const [cajas, setCajas] = useState([])
   const [movimientos, setMovimientos] = useState([])
   const [error, setError] = useState('')
@@ -459,7 +467,10 @@ function Caja() {
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [activeModal, setActiveModal] = useState(null)
-  const [sucursales] = useState(() => getStoredSucursales())
+  const sucursales = useMemo(() => {
+    const authSucursales = getSucursalesFromUser(user)
+    return authSucursales.length ? authSucursales : getStoredSucursales()
+  }, [user])
 
   const cajaAbierta = useMemo(
     () => cajas.find((caja) => caja.estado === 'abierta') || null,
@@ -473,18 +484,26 @@ function Caja() {
     return movimientos.filter((movimiento) => movimiento.caja_session === cajaAbierta.id)
   }, [cajaAbierta, movimientos])
 
-  const ingresosHoy = useMemo(
+  const ingresosTurno = useMemo(
     () =>
       movimientosCaja
-        .filter((movimiento) => movimiento.tipo === 'ingreso' && isToday(movimiento.fecha))
+        .filter((movimiento) => movimiento.tipo === 'ingreso')
         .reduce((total, movimiento) => total + Number(movimiento.monto || 0), 0),
     [movimientosCaja],
   )
 
-  const egresosHoy = useMemo(
+  const egresosTurno = useMemo(
     () =>
       movimientosCaja
-        .filter((movimiento) => movimiento.tipo === 'egreso' && isToday(movimiento.fecha))
+        .filter((movimiento) => movimiento.tipo === 'egreso')
+        .reduce((total, movimiento) => total + Number(movimiento.monto || 0), 0),
+    [movimientosCaja],
+  )
+
+  const ajustesTurno = useMemo(
+    () =>
+      movimientosCaja
+        .filter((movimiento) => movimiento.tipo === 'ajuste')
         .reduce((total, movimiento) => total + Number(movimiento.monto || 0), 0),
     [movimientosCaja],
   )
@@ -493,7 +512,7 @@ function Caja() {
     () => getSaldoActual(cajaAbierta, movimientosCaja),
     [cajaAbierta, movimientosCaja],
   )
-  const diferencia = ingresosHoy - egresosHoy
+  const flujoNeto = ingresosTurno - egresosTurno
   const chartData = useMemo(() => buildChartData(movimientosCaja), [movimientosCaja])
   const ultimosMovimientos = movimientosCaja.slice(0, 8)
 
@@ -617,6 +636,17 @@ function Caja() {
         </div>
       ) : null}
 
+      {cajaAbierta ? (
+        <ContextHelp
+          className="context-help-compact"
+          item={{
+            label: 'Valores del turno abierto',
+            description:
+              'Un turno de caja puede comenzar un día y cerrarse después. Por eso estos valores corresponden al turno abierto, no solo al día calendario.',
+          }}
+        />
+      ) : null}
+
       <section className="cash-kpi-grid">
         <CajaKpiCard
           accent="balance"
@@ -627,24 +657,24 @@ function Caja() {
         />
         <CajaKpiCard
           accent="income"
-          helper="Entradas registradas hoy"
+          helper="Entradas registradas en la caja abierta"
           icon={ArrowUpRight}
-          label="Ingresos hoy"
-          value={isLoading ? '...' : formatMoney(ingresosHoy)}
+          label="Ingresos del turno"
+          value={isLoading ? '...' : formatMoney(ingresosTurno)}
         />
         <CajaKpiCard
           accent="expense"
-          helper="Salidas registradas hoy"
+          helper="Salidas registradas en la caja abierta"
           icon={ArrowDownLeft}
-          label="Egresos hoy"
-          value={isLoading ? '...' : formatMoney(egresosHoy)}
+          label="Egresos del turno"
+          value={isLoading ? '...' : formatMoney(egresosTurno)}
         />
         <CajaKpiCard
           accent="diff"
-          helper="Ingresos menos egresos"
+          helper={ajustesTurno ? `Ajustes separados: ${formatMoney(ajustesTurno)}` : 'Ingresos menos egresos del turno'}
           icon={CheckCircle2}
-          label="Diferencia"
-          value={isLoading ? '...' : formatMoney(diferencia)}
+          label="Flujo neto"
+          value={isLoading ? '...' : formatMoney(flujoNeto)}
         />
       </section>
 
@@ -655,7 +685,7 @@ function Caja() {
               <p className="eyebrow">Flujo del turno</p>
               <h3>Ingresos vs Egresos</h3>
             </div>
-            <span>{movimientosCaja.length ? 'Datos reales' : 'Sin actividad'}</span>
+            <span>{movimientosCaja.length ? 'Turno abierto' : 'Sin actividad'}</span>
           </div>
 
           <div className="cash-chart">
@@ -664,9 +694,9 @@ function Caja() {
                 <RefreshCw size={22} />
                 Cargando caja...
               </div>
-            ) : (
+            ) : chartData.length ? (
               <ResponsiveContainer height={310} minHeight={310} minWidth={0} width="100%">
-                <AreaChart data={chartData || []} margin={{ top: 12, right: 12, bottom: 0, left: 0 }}>
+                <AreaChart data={chartData} margin={{ top: 12, right: 12, bottom: 0, left: 0 }}>
                   <defs>
                     <linearGradient id="cashIncome" x1="0" x2="0" y1="0" y2="1">
                       <stop offset="5%" stopColor="#19d395" stopOpacity={0.32} />
@@ -696,6 +726,8 @@ function Caja() {
                   <Area dataKey="egresos" fill="url(#cashExpense)" isAnimationActive={false} stroke="#ff6384" strokeWidth={3} type="monotone" />
                 </AreaChart>
               </ResponsiveContainer>
+            ) : (
+              <div className="cash-movement-empty">Todavía no hay movimientos en este turno.</div>
             )}
           </div>
         </article>
@@ -748,7 +780,7 @@ function Caja() {
             items={[cashHelp.abrir, cashHelp.cerrar, cashHelp.ingreso, cashHelp.egreso]}
           />
           {!sucursales.length ? (
-            <p className="cash-action-help">Tu usuario no tiene una sucursal principal configurada.</p>
+            <p className="cash-action-help">{ERROR_SUCURSAL_USUARIO}</p>
           ) : null}
         </aside>
       </section>

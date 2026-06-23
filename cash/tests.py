@@ -61,6 +61,70 @@ class CashHardeningTests(TestCase):
         self.assertIn('caja_session', serializer.errors)
 
 
+class CajaAperturaApiTests(TestCase):
+    def setUp(self):
+        self.tenant = Tenant.objects.create(
+            nombre='Empresa Apertura',
+            razon_social='Empresa Apertura SA',
+            cuit='50-00000005-1',
+        )
+        self.sucursal = Sucursal.objects.create(tenant=self.tenant, nombre='Central')
+        self.user = Usuario.objects.create_user(
+            username='apertura',
+            password='test',
+            tenant=self.tenant,
+            sucursal_principal=self.sucursal,
+            is_superuser=True,
+        )
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+    def test_apertura_usa_tenant_usuario_y_sucursal_principal(self):
+        response = self.client.post(
+            '/api/cajas/',
+            {'saldo_inicial': '250.00'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 201, response.data)
+        caja = CajaSession.objects.get()
+        self.assertEqual(caja.tenant, self.tenant)
+        self.assertEqual(caja.sucursal, self.sucursal)
+        self.assertEqual(caja.usuario, self.user)
+
+    def test_apertura_sin_sucursal_devuelve_error_claro(self):
+        self.user.sucursal_principal = None
+        self.user.save(update_fields=['sucursal_principal'])
+
+        response = self.client.post(
+            '/api/cajas/',
+            {'saldo_inicial': '250.00'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('sucursal', response.data)
+        self.assertIn(
+            'Tu usuario no tiene una sucursal asignada. Pedile a un administrador que configure tu sucursal.',
+            str(response.data['sucursal']),
+        )
+        self.assertFalse(CajaSession.objects.exists())
+
+    def test_apertura_sin_tenant_devuelve_400(self):
+        self.user.tenant = None
+        self.user.save(update_fields=['tenant'])
+
+        response = self.client.post(
+            '/api/cajas/',
+            {'saldo_inicial': '250.00'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('El usuario autenticado debe tener una empresa asociada.', str(response.data))
+        self.assertFalse(CajaSession.objects.exists())
+
+
 class CajaWorkflowTests(TestCase):
     def setUp(self):
         self.tenant = Tenant.objects.create(

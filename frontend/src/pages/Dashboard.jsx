@@ -121,6 +121,28 @@ function Panel({ children, title, eyebrow, count }) {
   )
 }
 
+function QuickActionCard({ action }) {
+  const Icon = action.icon
+
+  if (action.disabled) {
+    return (
+      <article aria-disabled="true" className="dashboard2-action-card dashboard2-action-card-disabled">
+        <Icon size={20} />
+        <span>{action.label}</span>
+        <small>{action.reason}</small>
+      </article>
+    )
+  }
+
+  return (
+    <Link className="dashboard2-action-card" to={action.to}>
+      <Icon size={20} />
+      <span>{action.label}</span>
+      <ArrowRight size={16} />
+    </Link>
+  )
+}
+
 function Dashboard() {
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
@@ -223,6 +245,44 @@ function Dashboard() {
     return nextAlerts
   }, [caja.existe, comprasPendientes, stockBajo.length])
 
+  const quickActions = useMemo(
+    () => [
+      {
+        icon: TrendingUp,
+        label: 'Nueva venta',
+        to: '/ventas',
+      },
+      {
+        icon: PackagePlus,
+        label: 'Nuevo producto',
+        to: '/productos',
+      },
+      {
+        icon: ShoppingCart,
+        label: 'Nueva compra',
+        to: '/compras',
+      },
+      {
+        icon: Boxes,
+        label: 'Nuevo movimiento',
+        to: '/inventario',
+      },
+      {
+        disabled: caja.existe,
+        icon: Wallet,
+        label: 'Abrir caja',
+        reason: 'Ya hay una caja abierta',
+        to: '/caja',
+      },
+      {
+        icon: Users,
+        label: 'Gestionar usuarios',
+        to: '/usuarios',
+      },
+    ],
+    [caja.existe],
+  )
+
   const inventoryChartData = useMemo(() => buildInventoryChartData(movimientos), [movimientos])
   const criticalStock = stockBajo.slice(0, 5)
   const movementSummary = useMemo(() => {
@@ -298,6 +358,20 @@ function Dashboard() {
         {kpis.map((kpi) => (
           <KpiCard key={kpi.label} {...kpi} />
         ))}
+      </section>
+
+      <section className="dashboard2-quick-panel">
+        <div className="dashboard2-section-heading">
+          <div>
+            <h3>Accesos rápidos</h3>
+            <p>Atajos para operar el negocio sin buscar en el menú.</p>
+          </div>
+        </div>
+        <div className="dashboard2-actions-grid">
+          {quickActions.map((action) => (
+            <QuickActionCard action={action} key={action.label} />
+          ))}
+        </div>
       </section>
 
       <section className="dashboard2-alert-grid">
@@ -433,39 +507,6 @@ function Dashboard() {
             ))}
           </div>
         </Panel>
-      </section>
-
-      <section className="dashboard2-actions-grid">
-        <Link className="dashboard2-action-card" to="/ventas">
-          <TrendingUp size={20} />
-          <span>Nueva venta</span>
-          <ArrowRight size={16} />
-        </Link>
-        <Link className="dashboard2-action-card" to="/productos">
-          <PackagePlus size={20} />
-          <span>Nuevo producto</span>
-          <ArrowRight size={16} />
-        </Link>
-        <Link className="dashboard2-action-card" to="/compras">
-          <ShoppingCart size={20} />
-          <span>Nueva compra</span>
-          <ArrowRight size={16} />
-        </Link>
-        <Link className="dashboard2-action-card" to="/inventario">
-          <Boxes size={20} />
-          <span>Nuevo movimiento</span>
-          <ArrowRight size={16} />
-        </Link>
-        <Link className="dashboard2-action-card" to="/caja">
-          <Wallet size={20} />
-          <span>{caja.existe ? 'Cerrar caja' : 'Abrir caja'}</span>
-          <ArrowRight size={16} />
-        </Link>
-        <Link className="dashboard2-action-card" to="/usuarios">
-          <Users size={20} />
-          <span>Gestionar usuarios</span>
-          <ArrowRight size={16} />
-        </Link>
       </section>
     </section>
   )

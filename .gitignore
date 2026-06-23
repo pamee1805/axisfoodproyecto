@@ -13,11 +13,17 @@ venv/
 env/
 
 # Frontend
+node_modules/
+dist/
+build/
 frontend/node_modules/
 frontend/dist/
+frontend/build/
 frontend/*.log
 
 # Logs and runtime files
+logs/
+log/
 *.log
 *.out.log
 *.err.log
@@ -25,6 +31,9 @@ frontend/*.log
 # Local browser/test artifacts
 .tmp*/
 .tmp-*
+tmp/
+temp/
+*.tmp
 
 # ngrok local binaries and runtime output
 tools/ngrok/*.exe
