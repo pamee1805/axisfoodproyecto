@@ -17,12 +17,15 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import include, path
 
+from core.views import healthcheck
+
 admin.site.site_header = 'Administración de AxisFood'
 admin.site.site_title = 'AxisFood'
 admin.site.index_title = 'Panel de control'
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('api/health/', healthcheck, name='api-healthcheck'),
     path('api/auth/', include('accounts.urls')),
     path('api/', include('accounts.api_urls')),
     path('api/', include('products.urls')),

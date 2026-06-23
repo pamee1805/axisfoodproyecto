@@ -34,7 +34,7 @@ class DevelopmentCorsMiddleware:
         )
 
     def _origin_allowed(self, origin):
-        if not getattr(settings, 'DEBUG', False) or not origin:
+        if not origin:
             return False
         if origin in getattr(settings, 'CORS_ALLOWED_ORIGINS', []):
             return True

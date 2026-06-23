@@ -5,19 +5,72 @@ Django settings for AxisFood project.
 from datetime import timedelta
 import os
 from pathlib import Path
+from urllib.parse import parse_qs, unquote, urlparse
+
+from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = "django-insecure-fz!i+atih6n3a0(qui-q@tw6&a)2euc2g=h^uhl*zk0(lyq&cx"
 
-DEBUG = True
+def env_bool(name, default=False):
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {'1', 'true', 'yes', 'on'}
 
 
-def env_list(name, default=None):
-    value = os.environ.get(name, '')
+DEBUG = env_bool('DEBUG', True)
+
+SECRET_KEY = os.environ.get('SECRET_KEY')
+if not SECRET_KEY:
+    if DEBUG:
+        SECRET_KEY = 'django-insecure-local-dev-axisfood'
+    else:
+        raise ImproperlyConfigured('SECRET_KEY debe estar configurada en producción.')
+
+
+def env_list(*names, default=None):
+    value = ''
+    for name in names:
+        value = os.environ.get(name, '')
+        if value:
+            break
     if not value:
         return list(default or [])
     return [item.strip() for item in value.split(',') if item.strip()]
+
+
+def database_from_url(value):
+    parsed = urlparse(value)
+    engine_by_scheme = {
+        'postgres': 'django.db.backends.postgresql',
+        'postgresql': 'django.db.backends.postgresql',
+        'sqlite': 'django.db.backends.sqlite3',
+    }
+    engine = engine_by_scheme.get(parsed.scheme)
+    if not engine:
+        raise ImproperlyConfigured('DATABASE_URL debe usar postgres://, postgresql:// o sqlite://.')
+
+    if engine == 'django.db.backends.sqlite3':
+        return {
+            'ENGINE': engine,
+            'NAME': parsed.path.lstrip('/') or BASE_DIR / 'db.sqlite3',
+        }
+
+    config = {
+        'ENGINE': engine,
+        'NAME': unquote(parsed.path.lstrip('/')),
+        'USER': unquote(parsed.username or ''),
+        'PASSWORD': unquote(parsed.password or ''),
+        'HOST': parsed.hostname or '',
+        'PORT': str(parsed.port or ''),
+        'CONN_MAX_AGE': 600,
+    }
+    query = parse_qs(parsed.query)
+    sslmode = query.get('sslmode', [None])[0]
+    if sslmode:
+        config['OPTIONS'] = {'sslmode': sslmode}
+    return config
 
 
 DEV_ALLOWED_HOSTS = [
@@ -30,13 +83,15 @@ DEV_ALLOWED_HOSTS = [
 ]
 
 ALLOWED_HOSTS = env_list(
+    'ALLOWED_HOSTS',
     'DJANGO_ALLOWED_HOSTS',
-    DEV_ALLOWED_HOSTS if DEBUG else [],
+    default=DEV_ALLOWED_HOSTS if DEBUG else [],
 )
 
 CSRF_TRUSTED_ORIGINS = env_list(
+    'CSRF_TRUSTED_ORIGINS',
     'DJANGO_CSRF_TRUSTED_ORIGINS',
-    [
+    default=[
         'http://localhost:5173',
         'http://127.0.0.1:5173',
         'https://*.ngrok-free.dev',
@@ -46,16 +101,18 @@ CSRF_TRUSTED_ORIGINS = env_list(
 )
 
 CORS_ALLOWED_ORIGINS = env_list(
+    'CORS_ALLOWED_ORIGINS',
     'DJANGO_CORS_ALLOWED_ORIGINS',
-    [
+    default=[
         'http://localhost:5173',
         'http://127.0.0.1:5173',
     ] if DEBUG else [],
 )
 
 CORS_ALLOWED_ORIGIN_REGEXES = env_list(
+    'CORS_ALLOWED_ORIGIN_REGEXES',
     'DJANGO_CORS_ALLOWED_ORIGIN_REGEXES',
-    [
+    default=[
         r'^https://.*\.ngrok-free\.dev$',
         r'^https://.*\.ngrok-free\.app$',
         r'^https://.*\.ngrok\.app$',
@@ -92,6 +149,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "core.middleware.DevelopmentCorsMiddleware",
@@ -122,14 +180,16 @@ TEMPLATES = [
 WSGI_APPLICATION = "config.wsgi.application"
 
 
+DATABASE_URL = os.environ.get('DATABASE_URL')
+
 DATABASES = {
-    "default": {
+    "default": database_from_url(DATABASE_URL) if DATABASE_URL else {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": "axisfood_bd",
-        "USER": "postgres",
-        "PASSWORD": "1405",
-        "HOST": "localhost",
-        "PORT": "5432",
+        "NAME": os.environ.get("DB_NAME", "axisfood_bd"),
+        "USER": os.environ.get("DB_USER", "postgres"),
+        "PASSWORD": os.environ.get("DB_PASSWORD", ""),
+        "HOST": os.environ.get("DB_HOST", "localhost"),
+        "PORT": os.environ.get("DB_PORT", "5432"),
     }
 }
 
@@ -160,6 +220,15 @@ USE_TZ = True
 
 
 STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
