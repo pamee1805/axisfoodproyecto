@@ -1,79 +1,182 @@
 # API_GUIDELINES.md
-# Guía de Diseño de APIs
 
-## 1. Principio
+# Guía Oficial de APIs
 
-Las APIs deben ser consistentes, predecibles, documentadas y seguras.
+## 1. Objetivo
 
-## 2. Convenciones de naming
+Definir los estándares obligatorios para todas las APIs de AxisFood.
+
+Las APIs deben ser:
+
+- consistentes;
+- seguras;
+- auditables;
+- multi-tenant;
+- documentadas;
+- versionables.
+
+Ningún endpoint puede implementarse fuera de estas reglas.
+
+---
+
+## 2. Principios
+
+### Backend como Source of Truth
+
+El backend es responsable de:
+
+- permisos;
+- validaciones;
+- workflows;
+- cálculos;
+- auditoría;
+- multi-tenant.
+
+El frontend nunca debe asumir que una operación es válida.
+
+---
+
+## 3. Convenciones de Naming
 
 Usar sustantivos en plural:
 
 ```txt
-/api/products/
-/api/orders/
-/api/customers/
-/api/tickets/
+/api/v1/products/
+/api/v1/orders/
+/api/v1/customers/
+/api/v1/payments/
+/api/v1/inventory/
+/api/v1/purchases/
 ```
 
-Evitar nombres ambiguos:
+Evitar:
 
 ```txt
 /api/do_stuff/
 /api/process/
 /api/data/
+/api/createProduct/
 ```
 
-## 3. Métodos HTTP
+---
+
+## 4. Métodos HTTP
 
 | Método | Uso |
 |---|---|
 | GET | Lectura |
-| POST | Creación o acción controlada |
+| POST | Creación |
 | PUT | Reemplazo completo |
 | PATCH | Actualización parcial |
-| DELETE | Eliminación lógica o controlada |
+| DELETE | Eliminación lógica |
 
-## 4. Acciones especiales
+---
 
-Para acciones de dominio usar rutas claras:
+## 5. Acciones Especiales
+
+Para acciones de dominio:
 
 ```txt
-POST /api/tickets/{id}/assign/
-POST /api/tickets/{id}/derive/
-POST /api/orders/{id}/cancel/
-POST /api/cash-register/{id}/close/
+POST /api/v1/orders/{id}/cancel/
+POST /api/v1/orders/{id}/complete/
+POST /api/v1/settlements/{id}/close/
+POST /api/v1/cash-registers/{id}/close/
+POST /api/v1/purchases/{id}/approve/
 ```
 
-## 5. Paginación
+---
 
-Todo listado grande debe paginarse.
+## 6. Versionado
 
-Respuesta sugerida:
+Formato oficial:
+
+```txt
+/api/v1/
+```
+
+Ejemplos:
+
+```txt
+/api/v1/products/
+/api/v1/orders/
+/api/v1/customers/
+```
+
+Los cambios incompatibles requieren:
+
+```txt
+/api/v2/
+```
+
+---
+
+## 7. Multi-Tenant
+
+Toda API sensible debe:
+
+- validar tenant;
+- validar rol;
+- validar scope;
+- filtrar recursos por tenant;
+- impedir acceso a recursos de otros tenants.
+
+Ejemplo:
+
+```python
+Product.objects.filter(
+    tenant=request.user.tenant
+)
+```
+
+---
+
+## 8. RBAC
+
+Toda API debe validar:
+
+- autenticación;
+- rol;
+- scope;
+- tenant;
+- estado del usuario.
+
+Referirse a:
+
+```txt
+RBAC.md
+```
+
+---
+
+## 9. Formato de Respuesta Exitosa
 
 ```json
 {
-  "count": 120,
-  "next": "...",
-  "previous": null,
+  "success": true,
+  "data": {},
+  "message": "Operación realizada correctamente"
+}
+```
+
+---
+
+## 10. Respuesta con Listado
+
+```json
+{
+  "success": true,
+  "count": 100,
   "results": []
 }
 ```
 
-## 6. Filtros
+---
 
-Los filtros deben ser explícitos:
-
-```txt
-/api/orders/?status=pending&created_from=2026-01-01&created_to=2026-01-31
-```
-
-## 7. Errores
-
-Formato estándar:
+## 11. Formato de Error
 
 ```json
 {
+  "success": false,
   "error": {
     "code": "VALIDATION_ERROR",
     "message": "No se pudo completar la operación.",
@@ -84,45 +187,209 @@ Formato estándar:
 }
 ```
 
-## 8. Versionado
+---
 
-Si un cambio rompe compatibilidad:
+## 12. Códigos HTTP
+
+| Código | Uso |
+|---|---|
+| 200 | OK |
+| 201 | Creado |
+| 204 | Sin contenido |
+| 400 | Error de validación |
+| 401 | No autenticado |
+| 403 | Sin permisos |
+| 404 | No encontrado |
+| 409 | Conflicto |
+| 422 | Regla de negocio |
+| 500 | Error interno |
+
+---
+
+## 13. Paginación
+
+Todo listado grande debe paginarse.
+
+Formato estándar:
+
+```json
+{
+  "count": 120,
+  "next": "...",
+  "previous": null,
+  "results": []
+}
+```
+
+---
+
+## 14. Filtros
+
+Ejemplos:
+
+```txt
+/products/?search=pizza
+
+/products/?category=1
+
+/orders/?status=pending
+
+/orders/?date_from=2026-01-01
+
+/orders/?date_to=2026-01-31
+```
+
+---
+
+## 15. Ordenamiento
+
+Formato:
+
+```txt
+?ordering=name
+
+?ordering=-created_at
+```
+
+---
+
+## 16. Autenticación
+
+Sistema oficial:
+
+```txt
+JWT
+```
+
+Header:
+
+```http
+Authorization: Bearer TOKEN
+```
+
+---
+
+## 17. Auditoría
+
+Deben generar auditoría:
+
+- POST
+- PUT
+- PATCH
+- DELETE
+- Exportaciones
+- Cambios de estado
+- Ajustes de inventario
+- Rendiciones
+- Compras
+- Mermas
+- Desperdicios
+- Devoluciones
+
+---
+
+## 18. APIs Oficiales de AxisFood
+
+### Accounts
+
+```txt
+/api/v1/accounts/
+```
+
+### Tenants
+
+```txt
+/api/v1/tenants/
+```
+
+### Customers
+
+```txt
+/api/v1/customers/
+```
+
+### Products
 
 ```txt
 /api/v1/products/
-/api/v2/products/
 ```
 
-## 9. Seguridad
+### Orders
 
-- Cada endpoint debe tener permisos.
-- Validar ownership.
-- Validar tenant.
-- No exponer campos sensibles.
-- Rate limit en endpoints públicos.
-- Auditar exportaciones y acciones críticas.
+```txt
+/api/v1/orders/
+```
 
-## 10. Documentación
+### Payments
 
-Cada endpoint debe documentar:
+```txt
+/api/v1/payments/
+```
 
-- propósito;
-- permisos;
-- request;
-- response;
-- errores;
-- filtros;
-- paginación;
-- side effects;
-- eventos auditables.
+### Cash
 
-## 11. Checklist antes de crear endpoint
+```txt
+/api/v1/cash/
+```
 
-- ¿Ya existe un endpoint similar?
+### Inventory
+
+```txt
+/api/v1/inventory/
+```
+
+### Purchases
+
+```txt
+/api/v1/purchases/
+```
+
+### Suppliers
+
+```txt
+/api/v1/suppliers/
+```
+
+### Deliveries
+
+```txt
+/api/v1/deliveries/
+```
+
+### Settlements
+
+```txt
+/api/v1/settlements/
+```
+
+### Losses
+
+```txt
+/api/v1/losses/
+```
+
+### Reports
+
+```txt
+/api/v1/reports/
+```
+
+---
+
+## 19. Checklist antes de crear un endpoint
+
+- ¿Ya existe uno similar?
 - ¿Respeta naming?
-- ¿Tiene permisos?
+- ¿Respeta tenant?
+- ¿Valida RBAC?
+- ¿Tiene auditoría?
 - ¿Tiene tests?
 - ¿Está documentado?
-- ¿Respeta tenant?
-- ¿Necesita auditoría?
-- ¿Necesita notificación?
+- ¿Necesita notificaciones?
+- ¿Respeta Workflow?
+
+---
+
+## 20. Regla de Oro
+
+> Ninguna API puede exponer datos de otro tenant, ignorar RBAC o ejecutar lógica de negocio fuera de los Services.

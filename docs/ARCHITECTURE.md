@@ -1,12 +1,24 @@
 # ARCHITECTURE.md
-# Arquitectura del Sistema
 
-## 1. Principio rector
+# Arquitectura Oficial de AxisFood
 
-> El backend es el **source of truth**.  
-> El frontend presenta estado, pero no decide reglas de negocio, permisos, workflow, SLA, precios ni validaciones críticas.
+## 1. Principio Rector
 
-## 2. Objetivos arquitectónicos
+> El backend es el Source of Truth.
+
+El frontend presenta información pero no decide:
+
+- reglas de negocio;
+- permisos;
+- workflows;
+- estados;
+- precios;
+- cálculos;
+- validaciones críticas.
+
+---
+
+## 2. Objetivos Arquitectónicos
 
 La arquitectura debe ser:
 
@@ -15,131 +27,289 @@ La arquitectura debe ser:
 - testeable;
 - escalable;
 - segura;
-- multi-tenant si aplica;
-- observable;
+- multi-tenant;
+- auditable;
 - documentada;
-- preparada para agentes IA sin improvisación.
+- preparada para IA.
 
-## 3. Capas del sistema
+---
+
+## 3. Arquitectura General
 
 ```txt
-Frontend
-  ↓
-API / Controllers / ViewSets
-  ↓
-Serializers / DTOs
-  ↓
-Service Layer
-  ↓
-Models / ORM
-  ↓
-Database
+Usuario
+   │
+   ▼
+Frontend React
+   │
+   ▼
+API REST
+   │
+   ▼
+Permissions / RBAC
+   │
+   ▼
+Services
+   │
+   ▼
+Selectors
+   │
+   ▼
+Models
+   │
+   ▼
+PostgreSQL
 ```
 
-## 4. Regla de Service Layer
+---
 
-Toda lógica de negocio compleja debe vivir en `services/`.
+## 4. Capas del Sistema
 
-### Permitido en services
+### Frontend
 
-- workflow;
+Responsable de:
+
+- UI;
+- formularios;
+- navegación;
+- experiencia de usuario.
+
+### API Layer
+
+Responsable de:
+
+- requests;
+- responses;
+- autenticación;
+- permisos.
+
+### Service Layer
+
+Responsable de:
+
+- lógica de negocio;
+- workflows;
 - cálculos;
-- validaciones de negocio;
-- reglas de permisos complejas;
-- transiciones de estado;
-- creación coordinada de entidades;
-- auditoría;
-- notificaciones;
-- integración con terceros.
+- validaciones complejas.
 
-### Prohibido en vistas, serializers o frontend
+### Selector Layer
 
-- lógica de negocio crítica;
-- cálculos de permisos;
-- mutaciones complejas;
-- decisiones de workflow;
-- reglas multi-tenant;
-- validaciones de seguridad.
+Responsable de:
 
-## 5. Módulos principales
+- consultas complejas;
+- filtros;
+- reportes.
 
-| Módulo | Responsabilidad | Owner principal |
+### Persistence Layer
+
+Responsable de:
+
+- modelos;
+- relaciones;
+- almacenamiento.
+
+---
+
+## 5. Módulos Oficiales
+
+| Módulo | Responsabilidad | Owner |
 |---|---|---|
-| `[Módulo 1]` | `[Responsabilidad]` | Backend Agent |
-| `[Módulo 2]` | `[Responsabilidad]` | Frontend Agent |
-| `[Módulo 3]` | `[Responsabilidad]` | DevOps Agent |
-| `[Módulo 4]` | `[Responsabilidad]` | Security Agent |
+| Accounts | Usuarios y autenticación | Backend Agent |
+| Tenants | Multi-tenant | Backend Agent |
+| Customers | Clientes | Backend Agent |
+| Products | Productos | Backend Agent |
+| Orders | Pedidos | Backend Agent |
+| Payments | Pagos | Backend Agent |
+| Cash | Caja | Backend Agent |
+| Inventory | Inventario | Backend Agent |
+| Purchases | Compras | Backend Agent |
+| Suppliers | Proveedores | Backend Agent |
+| Deliveries | Deliverys | Backend Agent |
+| Settlements | Rendiciones | Backend Agent |
+| Losses | Mermas y desperdicios | Backend Agent |
+| Reports | Reportes | Backend Agent |
+| Audit | Auditoría | Security Agent |
+| Dashboard | Indicadores | Frontend Agent |
 
-## 6. Modelo de datos
+---
 
-### Entidades principales
+## 6. Entidades Principales
 
-| Entidad | Descripción | Relaciones clave |
-|---|---|---|
-| `[Entidad 1]` | `[Descripción]` | `[Relaciones]` |
-| `[Entidad 2]` | `[Descripción]` | `[Relaciones]` |
+| Entidad | Descripción |
+|---|---|
+| Tenant | Negocio gastronómico |
+| User | Usuario |
+| Customer | Cliente |
+| Product | Producto |
+| Order | Pedido |
+| Payment | Pago |
+| CashMovement | Movimiento de caja |
+| Supplier | Proveedor |
+| Purchase | Compra |
+| InventoryMovement | Movimiento de stock |
+| Delivery | Repartidor |
+| Settlement | Rendición |
+| Loss | Merma |
+| Waste | Desperdicio |
+| Expiration | Vencimiento |
+| AuditLog | Auditoría |
 
-### Reglas de datos
+---
 
-- Toda entidad sensible debe tener `created_at`, `updated_at` y trazabilidad.
-- Toda entidad multi-tenant debe estar asociada a un tenant/organismo/empresa.
-- No se deben hacer queries globales sin scope.
-- No se deben exponer IDs internos si el dominio requiere códigos públicos.
+## 7. Reglas de Datos
 
-## 7. Multi-tenant y aislamiento
+- Toda entidad sensible debe tener trazabilidad.
+- Toda entidad sensible debe pertenecer a un tenant.
+- No existen queries globales sin tenant.
+- Todo acceso valida RBAC.
+- Todo acceso valida scope.
 
-Si el sistema es multi-tenant:
+---
 
-- cada query debe filtrar por tenant;
-- los permisos deben validar alcance;
-- los reportes deben respetar el tenant;
-- las exportaciones deben respetar el tenant;
-- ningún usuario debe poder inferir datos de otro tenant.
+## 8. Multi-Tenant
 
-## 8. Auditoría
+### Estrategia
 
-Toda acción relevante debe generar evento auditable.
+Aislamiento mediante tenant_id.
+
+Ejemplo:
+
+```python
+tenant = models.ForeignKey(
+    Tenant,
+    on_delete=models.CASCADE
+)
+```
+
+### Reglas
+
+- Todo recurso pertenece a un tenant.
+- Todo queryset filtra por tenant.
+- Todo reporte filtra por tenant.
+- Toda exportación filtra por tenant.
+- Ningún usuario puede acceder a datos de otro tenant.
+
+---
+
+## 9. RBAC
+
+```txt
+Usuario
+   │
+   ▼
+Rol
+   │
+   ▼
+Permisos
+   │
+   ▼
+Scope
+```
+
+Roles definidos en:
+
+```txt
+RBAC.md
+```
+
+---
+
+## 10. Service Layer
+
+Toda lógica compleja debe vivir en Services.
+
+Services principales:
+
+```txt
+OrderService
+PaymentService
+InventoryService
+PurchaseService
+SettlementService
+LossService
+ReportService
+```
+
+Prohibido:
+
+- lógica compleja en Views;
+- lógica compleja en Serializers;
+- lógica compleja en Frontend.
+
+---
+
+## 11. Auditoría
+
+Toda acción relevante debe generar auditoría.
 
 Eventos mínimos:
 
 - login;
+- logout;
 - creación;
 - edición;
 - cambio de estado;
 - eliminación lógica;
 - exportación;
-- asignación;
-- derivación;
-- cambio de permisos;
-- integración externa.
+- apertura de caja;
+- cierre de caja;
+- compras;
+- rendiciones;
+- ajustes de stock;
+- mermas;
+- desperdicios.
 
-## 9. Integraciones externas
+---
 
-| Integración | Propósito | Responsable | Estado |
-|---|---|---|---|
-| `[Integración 1]` | `[Propósito]` | `[Owner]` | `[Pendiente/Implementado]` |
+## 12. Integraciones
 
-## 10. Decisiones arquitectónicas
+| Integración | Propósito | Estado |
+|---|---|---|
+| Mercado Pago | Cobros online | Futuro |
+| WhatsApp | Notificaciones | Futuro |
+| Email | Comunicaciones | Futuro |
 
-Las decisiones relevantes deben registrarse como ADR en `templates/ADR_TEMPLATE.md`.
+---
 
-Ejemplos:
+## 13. Infraestructura
 
-- elección de framework;
-- patrón de autenticación;
-- base de datos;
-- estrategia multi-tenant;
-- manejo de archivos;
-- mensajería asíncrona;
-- proveedores externos.
+```txt
+Frontend React
+      │
+      ▼
+Nginx
+      │
+      ▼
+Django
+   ┌──┴──┐
+   ▼     ▼
+ Redis PostgreSQL
+```
 
-## 11. Anti-patrones prohibidos
+Servicios:
+
+- Frontend React
+- Backend Django
+- PostgreSQL
+- Redis
+- Celery
+- Nginx
+
+---
+
+## 14. Anti-Patrones Prohibidos
 
 - Duplicar lógica entre backend y frontend.
-- Crear endpoints ad hoc sin convención.
-- Mezclar dominios en un mismo módulo sin justificación.
-- Crear carpetas nuevas sin actualizar `FOLDER_STRUCTURE.md`.
-- Saltar permisos en endpoints internos.
+- Saltar Services.
+- Saltar RBAC.
+- Saltar auditoría.
+- Saltar tenant.
+- Crear endpoints sin documentación.
+- Crear carpetas sin actualizar FOLDER_STRUCTURE.md.
 - Hardcodear reglas de negocio.
-- Crear features sin tests mínimos.
-- Resolver deuda técnica agregando más complejidad accidental.
+
+---
+
+## 15. Regla de Oro
+
+> Si una implementación rompe el aislamiento multi-tenant, RBAC, auditoría, workflow o separación de capas, debe ser rechazada hasta ser revisada por el Orchestrator.

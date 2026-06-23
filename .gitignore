@@ -1,0 +1,40 @@
+# Python / Django
+__pycache__/
+*.py[cod]
+*.sqlite3
+db.sqlite3
+.env
+.env.*
+!.env.example
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/*.log
+
+# Logs and runtime files
+*.log
+*.out.log
+*.err.log
+
+# Local browser/test artifacts
+.tmp*/
+.tmp-*
+
+# ngrok local binaries and runtime output
+tools/ngrok/*.exe
+tools/ngrok/*.zip
+tools/ngrok/*.log
+tools/ngrok/*.out
+tools/ngrok/*.err
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
