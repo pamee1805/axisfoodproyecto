@@ -56,6 +56,7 @@ class Command(BaseCommand):
         call_command('seed_rbac', verbosity=0)
 
         tenant, sucursal = self._crear_tenant_y_sucursal()
+        self._asignar_admin_generico_si_existe(tenant, sucursal)
         usuarios = self._crear_usuarios(tenant, sucursal, demo_password)
         admin = usuarios['admin']
 
@@ -185,6 +186,28 @@ class Command(BaseCommand):
             },
         )
         return tenant, sucursal
+
+    def _asignar_admin_generico_si_existe(self, tenant, sucursal):
+        admin = Usuario.objects.filter(username='admin').first()
+        if admin is None:
+            return
+
+        admin.tenant = tenant
+        admin.sucursal_principal = sucursal
+        admin.estado = Usuario.Estado.ACTIVO
+        admin.is_active = True
+        admin.is_staff = True
+        admin.is_superuser = True
+        admin.save(
+            update_fields=[
+                'tenant',
+                'sucursal_principal',
+                'estado',
+                'is_active',
+                'is_staff',
+                'is_superuser',
+            ]
+        )
 
     def _crear_usuarios(self, tenant, sucursal, demo_password):
         specs = {
