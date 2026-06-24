@@ -227,6 +227,7 @@ STORAGES = {
         "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
     },
 }
+WHITENOISE_USE_FINDERS = env_bool("WHITENOISE_USE_FINDERS", True)
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
