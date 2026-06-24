@@ -82,6 +82,10 @@ DEV_ALLOWED_HOSTS = [
     '.ngrok.app',
 ]
 
+FRONTEND_ALLOWED_ORIGINS = [
+    'https://axisfoodproyecto.vercel.app',
+]
+
 ALLOWED_HOSTS = env_list(
     'ALLOWED_HOSTS',
     'DJANGO_ALLOWED_HOSTS',
@@ -92,6 +96,7 @@ CSRF_TRUSTED_ORIGINS = env_list(
     'CSRF_TRUSTED_ORIGINS',
     'DJANGO_CSRF_TRUSTED_ORIGINS',
     default=[
+        *FRONTEND_ALLOWED_ORIGINS,
         'http://localhost:5173',
         'http://127.0.0.1:5173',
         'https://*.ngrok-free.dev',
@@ -104,9 +109,10 @@ CORS_ALLOWED_ORIGINS = env_list(
     'CORS_ALLOWED_ORIGINS',
     'DJANGO_CORS_ALLOWED_ORIGINS',
     default=[
+        *FRONTEND_ALLOWED_ORIGINS,
         'http://localhost:5173',
         'http://127.0.0.1:5173',
-    ] if DEBUG else [],
+    ] if DEBUG else FRONTEND_ALLOWED_ORIGINS,
 )
 
 CORS_ALLOWED_ORIGIN_REGEXES = env_list(
@@ -130,6 +136,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
 
     # Third party
+    "corsheaders",
     "rest_framework",
     "rest_framework_simplejwt",
 
@@ -150,6 +157,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "core.middleware.DevelopmentCorsMiddleware",
