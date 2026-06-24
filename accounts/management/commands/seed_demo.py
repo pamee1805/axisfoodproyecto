@@ -1,3 +1,4 @@
+import os
 from decimal import Decimal
 from datetime import timedelta
 from types import SimpleNamespace
@@ -24,12 +25,17 @@ from tenants.models import Sucursal, Tenant
 
 
 DEMO_TENANT = 'AxisFood Demo'
-DEMO_PASSWORD = 'Demo12345!'
+DEMO_PASSWORD_ENV = 'AXISFOOD_DEMO_ADMIN_PASSWORD'
+DEMO_PASSWORD_FALLBACK = 'AxisFoodDemo2026!'
 DEMO_USERNAMES = (
     'axisfood_demo_admin',
     'axisfood_demo_gerente',
     'axisfood_demo_operador',
 )
+
+
+def get_demo_password():
+    return os.environ.get(DEMO_PASSWORD_ENV) or DEMO_PASSWORD_FALLBACK
 
 
 class Command(BaseCommand):
@@ -46,10 +52,11 @@ class Command(BaseCommand):
         if options['reset']:
             self._reset_demo()
 
+        demo_password = get_demo_password()
         call_command('seed_rbac', verbosity=0)
 
         tenant, sucursal = self._crear_tenant_y_sucursal()
-        usuarios = self._crear_usuarios(tenant, sucursal)
+        usuarios = self._crear_usuarios(tenant, sucursal, demo_password)
         admin = usuarios['admin']
 
         categorias = self._crear_categorias(tenant)
@@ -98,9 +105,9 @@ class Command(BaseCommand):
         self.stdout.write(f'Tenant: {tenant.nombre}')
         self.stdout.write(f'Sucursal: {sucursal.nombre}')
         self.stdout.write('Usuarios:')
-        self.stdout.write(f'  admin: axisfood_demo_admin / {DEMO_PASSWORD}')
-        self.stdout.write(f'  gerente: axisfood_demo_gerente / {DEMO_PASSWORD}')
-        self.stdout.write(f'  operador: axisfood_demo_operador / {DEMO_PASSWORD}')
+        self.stdout.write(f'  admin: axisfood_demo_admin / {demo_password}')
+        self.stdout.write(f'  gerente: axisfood_demo_gerente / {demo_password}')
+        self.stdout.write(f'  operador: axisfood_demo_operador / {demo_password}')
         self.stdout.write(f'Categorias: {len(categorias)}')
         self.stdout.write(f'Productos: {len(productos)}')
         self.stdout.write(f'Proveedores: {len(proveedores)}')
@@ -179,7 +186,7 @@ class Command(BaseCommand):
         )
         return tenant, sucursal
 
-    def _crear_usuarios(self, tenant, sucursal):
+    def _crear_usuarios(self, tenant, sucursal, demo_password):
         specs = {
             'admin': (DEMO_USERNAMES[0], 'Admin', 'Demo', 'tenant_admin', True),
             'gerente': (DEMO_USERNAMES[1], 'Gerente', 'Demo', 'manager', False),
@@ -201,8 +208,24 @@ class Command(BaseCommand):
                     'is_active': True,
                 },
             )
-            usuario.set_password(DEMO_PASSWORD)
-            usuario.save(update_fields=['password'])
+            usuario.set_password(demo_password)
+            usuario.tenant = tenant
+            usuario.sucursal_principal = sucursal
+            usuario.estado = Usuario.Estado.ACTIVO
+            usuario.is_staff = is_staff
+            usuario.is_superuser = key == 'admin'
+            usuario.is_active = True
+            usuario.save(
+                update_fields=[
+                    'password',
+                    'tenant',
+                    'sucursal_principal',
+                    'estado',
+                    'is_staff',
+                    'is_superuser',
+                    'is_active',
+                ]
+            )
             rol = Rol.objects.get(codigo=rol_codigo)
             UserRole.objects.get_or_create(usuario=usuario, rol=rol)
             usuarios[key] = usuario

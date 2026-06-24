@@ -77,9 +77,6 @@ DEV_ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
     '[::1]',
-    '.ngrok-free.dev',
-    '.ngrok-free.app',
-    '.ngrok.app',
 ]
 
 FRONTEND_ALLOWED_ORIGINS = [
@@ -99,9 +96,6 @@ CSRF_TRUSTED_ORIGINS = env_list(
         *FRONTEND_ALLOWED_ORIGINS,
         'http://localhost:5173',
         'http://127.0.0.1:5173',
-        'https://*.ngrok-free.dev',
-        'https://*.ngrok-free.app',
-        'https://*.ngrok.app',
     ] if DEBUG else [],
 )
 
@@ -118,11 +112,7 @@ CORS_ALLOWED_ORIGINS = env_list(
 CORS_ALLOWED_ORIGIN_REGEXES = env_list(
     'CORS_ALLOWED_ORIGIN_REGEXES',
     'DJANGO_CORS_ALLOWED_ORIGIN_REGEXES',
-    default=[
-        r'^https://.*\.ngrok-free\.dev$',
-        r'^https://.*\.ngrok-free\.app$',
-        r'^https://.*\.ngrok\.app$',
-    ] if DEBUG else [],
+    default=[],
 )
 
 
