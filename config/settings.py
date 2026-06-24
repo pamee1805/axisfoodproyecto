@@ -19,6 +19,16 @@ def env_bool(name, default=False):
     return value.strip().lower() in {'1', 'true', 'yes', 'on'}
 
 
+def env_int(name, default=0):
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except ValueError as exc:
+        raise ImproperlyConfigured(f'{name} debe ser un entero.') from exc
+
+
 DEBUG = env_bool('DEBUG', True)
 
 SECRET_KEY = os.environ.get('SECRET_KEY')
@@ -158,6 +168,15 @@ MIDDLEWARE = [
 ]
 
 
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SECURE_SSL_REDIRECT = env_bool('SECURE_SSL_REDIRECT', not DEBUG)
+SESSION_COOKIE_SECURE = env_bool('SESSION_COOKIE_SECURE', not DEBUG)
+CSRF_COOKIE_SECURE = env_bool('CSRF_COOKIE_SECURE', not DEBUG)
+SECURE_HSTS_SECONDS = env_int('SECURE_HSTS_SECONDS', 31536000 if not DEBUG else 0)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool('SECURE_HSTS_INCLUDE_SUBDOMAINS', False)
+SECURE_HSTS_PRELOAD = env_bool('SECURE_HSTS_PRELOAD', False)
+
+
 ROOT_URLCONF = "config.urls"
 
 TEMPLATES = [
@@ -181,14 +200,17 @@ WSGI_APPLICATION = "config.wsgi.application"
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
 DATABASES = {
-    "default": database_from_url(DATABASE_URL) if DATABASE_URL else {
+    "default": database_from_url(DATABASE_URL) if DATABASE_URL else ({
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
+    } if DEBUG else {
         "ENGINE": "django.db.backends.postgresql",
         "NAME": os.environ.get("DB_NAME", "axisfood_bd"),
         "USER": os.environ.get("DB_USER", "postgres"),
         "PASSWORD": os.environ.get("DB_PASSWORD", ""),
         "HOST": os.environ.get("DB_HOST", "localhost"),
         "PORT": os.environ.get("DB_PORT", "5432"),
-    }
+    })
 }
 
 

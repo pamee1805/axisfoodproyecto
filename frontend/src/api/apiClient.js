@@ -9,7 +9,9 @@ function normalizeApiBaseUrl(value) {
 }
 
 const API_BASE_URL = normalizeApiBaseUrl(
-  import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL,
+  import.meta.env.VITE_API_URL ||
+    import.meta.env.VITE_API_BASE_URL ||
+    (import.meta.env.DEV ? '/api/' : 'https://axisfood-backend.onrender.com/api'),
 )
 
 const apiClient = axios.create({
