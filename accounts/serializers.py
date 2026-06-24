@@ -58,6 +58,12 @@ class UsuarioMeSerializer(serializers.ModelSerializer):
 
 
 class LoginSerializer(TokenObtainPairSerializer):
+    def to_internal_value(self, data):
+        if self.username_field not in data and data.get('usuario'):
+            data = data.copy()
+            data[self.username_field] = data['usuario']
+        return super().to_internal_value(data)
+
     def validate(self, attrs):
         data = super().validate(attrs)
         data['user'] = UsuarioMeSerializer(self.user).data
