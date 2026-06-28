@@ -89,14 +89,19 @@ DEV_ALLOWED_HOSTS = [
     '[::1]',
 ]
 
+PRODUCTION_ALLOWED_HOSTS = [
+    'axisfood-backend.onrender.com',
+]
+
 FRONTEND_ALLOWED_ORIGINS = [
+    'https://axisfoodproyecto-git-main-pamee1805s-projects.vercel.app',
     'https://axisfoodproyecto.vercel.app',
 ]
 
 ALLOWED_HOSTS = env_list(
     'ALLOWED_HOSTS',
     'DJANGO_ALLOWED_HOSTS',
-    default=DEV_ALLOWED_HOSTS if DEBUG else [],
+    default=DEV_ALLOWED_HOSTS if DEBUG else PRODUCTION_ALLOWED_HOSTS,
 )
 
 CSRF_TRUSTED_ORIGINS = env_list(
@@ -106,7 +111,7 @@ CSRF_TRUSTED_ORIGINS = env_list(
         *FRONTEND_ALLOWED_ORIGINS,
         'http://localhost:5173',
         'http://127.0.0.1:5173',
-    ] if DEBUG else [],
+    ] if DEBUG else FRONTEND_ALLOWED_ORIGINS,
 )
 
 CORS_ALLOWED_ORIGINS = env_list(
@@ -125,8 +130,14 @@ CORS_ALLOWED_ORIGIN_REGEXES = env_list(
     default=[],
 )
 
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_ALL_ORIGINS = False
+CORS_URLS_REGEX = r'^/api/.*$'
+
 
 INSTALLED_APPS = [
+    "corsheaders",
+
     # Django
     "django.contrib.admin",
     "django.contrib.auth",
@@ -136,7 +147,6 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
 
     # Third party
-    "corsheaders",
     "rest_framework",
     "rest_framework_simplejwt",
 
@@ -156,11 +166,10 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
-    "whitenoise.middleware.WhiteNoiseMiddleware",
     "corsheaders.middleware.CorsMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
-    "core.middleware.DevelopmentCorsMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
