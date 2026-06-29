@@ -50,6 +50,10 @@ def env_list(*names, default=None):
     return [item.strip() for item in value.split(',') if item.strip()]
 
 
+def merge_unique(*groups):
+    return list(dict.fromkeys(item for group in groups for item in group))
+
+
 def database_from_url(value):
     parsed = urlparse(value)
     engine_by_scheme = {
@@ -98,30 +102,33 @@ FRONTEND_ALLOWED_ORIGINS = [
     'https://axisfoodproyecto.vercel.app',
 ]
 
+DEV_FRONTEND_ORIGINS = [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+]
+
 ALLOWED_HOSTS = env_list(
     'ALLOWED_HOSTS',
     'DJANGO_ALLOWED_HOSTS',
     default=DEV_ALLOWED_HOSTS if DEBUG else PRODUCTION_ALLOWED_HOSTS,
 )
 
-CSRF_TRUSTED_ORIGINS = env_list(
-    'CSRF_TRUSTED_ORIGINS',
-    'DJANGO_CSRF_TRUSTED_ORIGINS',
-    default=[
-        *FRONTEND_ALLOWED_ORIGINS,
-        'http://localhost:5173',
-        'http://127.0.0.1:5173',
-    ] if DEBUG else FRONTEND_ALLOWED_ORIGINS,
+CSRF_TRUSTED_ORIGINS = merge_unique(
+    FRONTEND_ALLOWED_ORIGINS,
+    env_list(
+        'CSRF_TRUSTED_ORIGINS',
+        'DJANGO_CSRF_TRUSTED_ORIGINS',
+    ),
+    DEV_FRONTEND_ORIGINS if DEBUG else [],
 )
 
-CORS_ALLOWED_ORIGINS = env_list(
-    'CORS_ALLOWED_ORIGINS',
-    'DJANGO_CORS_ALLOWED_ORIGINS',
-    default=[
-        *FRONTEND_ALLOWED_ORIGINS,
-        'http://localhost:5173',
-        'http://127.0.0.1:5173',
-    ] if DEBUG else FRONTEND_ALLOWED_ORIGINS,
+CORS_ALLOWED_ORIGINS = merge_unique(
+    FRONTEND_ALLOWED_ORIGINS,
+    env_list(
+        'CORS_ALLOWED_ORIGINS',
+        'DJANGO_CORS_ALLOWED_ORIGINS',
+    ),
+    DEV_FRONTEND_ORIGINS if DEBUG else [],
 )
 
 CORS_ALLOWED_ORIGIN_REGEXES = env_list(
